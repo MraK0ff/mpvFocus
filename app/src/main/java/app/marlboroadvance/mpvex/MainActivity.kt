@@ -49,6 +49,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
+import app.marlboroadvance.mpvex.utils.tv.LocalIsTV
+import app.marlboroadvance.mpvex.utils.tv.TvDetector
 
 /**
  * Main entry point for the application
@@ -93,8 +95,12 @@ class MainActivity : ComponentActivity() {
       }
 
       MpvexTheme {
-        Surface {
-          Navigator()
+        CompositionLocalProvider(
+          LocalIsTV provides TvDetector.isTV(this@MainActivity),
+        ) {
+          Surface {
+            Navigator()
+          }
         }
       }
     }

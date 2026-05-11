@@ -3,10 +3,13 @@ package app.marlboroadvance.mpvex.ui.player.controls.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -38,23 +41,89 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.marlboroadvance.mpvex.utils.tv.isTV
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/**
+ * Slide-to-unlock component that adapts to device type.
+ *
+ * - On mobile: Uses horizontal swipe gesture
+ * - On TV: Uses a simple button click (swipe is impossible with remote)
+ */
 @Composable
 fun SlideToUnlock(
   onUnlock: () -> Unit,
   modifier: Modifier = Modifier,
   onDraggingChanged: (Boolean) -> Unit = {},
 ) {
+  if (isTV) {
+    TvUnlockButton(onUnlock, modifier)
+  } else {
+    MobileSlideToUnlock(onUnlock, modifier, onDraggingChanged)
+  }
+}
+
+/**
+ * TV-optimized unlock button - uses simple click instead of swipe.
+ * Swipe gestures are impossible with TV remotes.
+ */
+@Composable
+private fun TvUnlockButton(
+  onUnlock: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier = modifier
+      .width(200.dp)
+      .height(64.dp)
+      .clip(RoundedCornerShape(32.dp))
+      .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+      .clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClick = onUnlock,
+      ),
+    contentAlignment = Alignment.Center,
+  ) {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.fillMaxHeight(),
+    ) {
+      Icon(
+        imageVector = Icons.Filled.LockOpen,
+        contentDescription = "Unlock controls",
+        tint = Color.White,
+        modifier = Modifier.size(28.dp),
+      )
+      Spacer(modifier = Modifier.width(12.dp))
+      Text(
+        text = "Press to Unlock",
+        color = Color.White,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Medium,
+      )
+    }
+  }
+}
+
+/**
+ * Mobile swipe-to-unlock implementation using horizontal drag gestures.
+ */
+@Composable
+private fun MobileSlideToUnlock(
+  onUnlock: () -> Unit,
+  modifier: Modifier = Modifier,
+  onDraggingChanged: (Boolean) -> Unit = {},
+) {
   val coroutineScope = rememberCoroutineScope()
-  
+
   var containerWidthPx by remember { mutableFloatStateOf(0f) }
   val sliderSize = 56.dp
-  
+
   val offsetX = remember { Animatable(0f) }
   var isDragging by remember { mutableStateOf(false) }
-  
+
   Box(
     modifier = modifier
       .width(200.dp)
@@ -69,7 +138,7 @@ fun SlideToUnlock(
     val sliderSizePx = containerWidthPx * (56f / 192f) // Accounting for padding (200 - 8)
     val maxOffset = if (containerWidthPx > 0f) containerWidthPx - sliderSizePx else 0f
     val unlockThreshold = if (maxOffset > 0f) maxOffset * 0.85f else Float.MAX_VALUE
-    
+
     // Background text - slightly to the right
     Box(
       modifier = Modifier
@@ -85,11 +154,11 @@ fun SlideToUnlock(
         fontWeight = FontWeight.Medium,
       )
     }
-    
+
     // Slider button
     val progress = if (maxOffset > 0f) (offsetX.value / maxOffset).coerceIn(0f, 1f) else 0f
     val showUnlockIcon = progress > 0.5f
-    
+
     Box(
       modifier = Modifier
         .offset { IntOffset(offsetX.value.roundToInt(), 0) }
@@ -98,7 +167,7 @@ fun SlideToUnlock(
         .background(MaterialTheme.colorScheme.primary)
         .pointerInput(containerWidthPx) {
           if (containerWidthPx <= 0f) return@pointerInput
-          
+
           detectHorizontalDragGestures(
             onDragStart = {
               isDragging = true

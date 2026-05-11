@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.marlboroadvance.mpvex.preferences.PlayerButton
+import app.marlboroadvance.mpvex.utils.tv.isTV
 import app.marlboroadvance.mpvex.ui.player.Panels
 import app.marlboroadvance.mpvex.ui.player.PlayerActivity
 import app.marlboroadvance.mpvex.ui.player.PlayerViewModel
@@ -106,7 +107,7 @@ fun RenderPlayerButton(
   onOpenPanel: (Panels) -> Unit,
   viewModel: PlayerViewModel,
   activity: PlayerActivity,
-  buttonSize: Dp = 40.dp,
+  buttonSize: Dp = if (isTV) 56.dp else 40.dp,
 ) {
   val clickEvent = LocalPlayerButtonsClickEvent.current
   when (button) {

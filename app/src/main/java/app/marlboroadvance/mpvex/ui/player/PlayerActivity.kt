@@ -1,4 +1,4 @@
-﻿package app.marlboroadvance.mpvex.ui.player
+package app.marlboroadvance.mpvex.ui.player
 
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -477,15 +477,20 @@ class PlayerActivity :
   @RequiresApi(Build.VERSION_CODES.P)
   private fun setupPlayerControls() {
     binding.controls.setContent {
-      MpvexTheme {
-        PlayerControls(
-          viewModel = viewModel,
-          onBackPress = {
-            isUserFinishing = true
-            finish()
-          },
-          modifier = Modifier,
-        )
+      androidx.compose.runtime.CompositionLocalProvider(
+        app.marlboroadvance.mpvex.utils.tv.LocalIsTV provides
+          app.marlboroadvance.mpvex.utils.tv.TvDetector.isTV(this@PlayerActivity),
+      ) {
+        MpvexTheme {
+          PlayerControls(
+            viewModel = viewModel,
+            onBackPress = {
+              isUserFinishing = true
+              finish()
+            },
+            modifier = Modifier,
+          )
+        }
       }
     }
   }
@@ -2475,58 +2480,104 @@ class PlayerActivity :
     val isTrackSheetOpen =
       viewModel.sheetShown.value == Sheets.SubtitleTracks ||
         viewModel.sheetShown.value == Sheets.AudioTracks
-    val isNoSheetOpen = viewModel.sheetShown.value == Sheets.None
+    val isAnySheetOpen = viewModel.sheetShown.value != Sheets.None
+    val isAnyPanelOpen = viewModel.panelShown.value != Panels.None
+    val hasOverlayOpen = isAnySheetOpen || isAnyPanelOpen
+    val controlsShown = viewModel.controlsShown.value
 
     when (keyCode) {
+      // ==================== D-pad Navigation ====================
+
       KeyEvent.KEYCODE_DPAD_UP -> {
+        // When no overlay is open: show controls (TV users expect UP to reveal UI)
+        if (!hasOverlayOpen && !controlsShown) {
+          viewModel.showControls()
+          return true
+        }
+        // When controls are shown or overlay is open, let Compose handle focus navigation
         return super.onKeyDown(keyCode, event)
       }
 
-      KeyEvent.KEYCODE_DPAD_DOWN,
-      KeyEvent.KEYCODE_DPAD_RIGHT,
-      KeyEvent.KEYCODE_DPAD_LEFT,
-        -> {
-        if (isTrackSheetOpen) {
+      KeyEvent.KEYCODE_DPAD_DOWN -> {
+        if (hasOverlayOpen || isTrackSheetOpen) {
           return super.onKeyDown(keyCode, event)
         }
-
-        if (isNoSheetOpen) {
-          when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-              viewModel.handleRightDoubleTap()
-              return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-              viewModel.handleLeftDoubleTap()
-              return true
-            }
-          }
+        // When controls are visible, let Compose handle focus; otherwise show controls
+        if (!controlsShown) {
+          viewModel.showControls()
+          return true
         }
         return super.onKeyDown(keyCode, event)
       }
+
+      KeyEvent.KEYCODE_DPAD_RIGHT -> {
+        if (hasOverlayOpen) {
+          return super.onKeyDown(keyCode, event)
+        }
+        // Seek forward when no overlay is open
+        viewModel.handleRightDoubleTap()
+        // Show seek bar briefly for visual feedback
+        viewModel.showSeekBar()
+        return true
+      }
+
+      KeyEvent.KEYCODE_DPAD_LEFT -> {
+        if (hasOverlayOpen) {
+          return super.onKeyDown(keyCode, event)
+        }
+        // Seek backward when no overlay is open
+        viewModel.handleLeftDoubleTap()
+        viewModel.showSeekBar()
+        return true
+      }
+
+      // ==================== Center / Select Button ====================
 
       KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-        if (isTrackSheetOpen) {
+        // If an overlay/sheet is open, let Compose handle the selection
+        if (hasOverlayOpen) {
           return super.onKeyDown(keyCode, event)
         }
-        return super.onKeyDown(keyCode, event)
+        // Primary TV action: toggle play/pause
+        viewModel.pauseUnpause()
+        // Also show controls briefly so user sees the state change
+        viewModel.showControls()
+        return true
       }
+
+      // ==================== Playback Control Keys ====================
 
       KeyEvent.KEYCODE_SPACE -> {
         viewModel.pauseUnpause()
         return true
       }
 
-      KeyEvent.KEYCODE_VOLUME_UP -> {
-        viewModel.changeVolumeBy(1)
-        viewModel.displayVolumeSlider()
+      KeyEvent.KEYCODE_MEDIA_PLAY -> {
+        viewModel.unpause()
         return true
       }
 
-      KeyEvent.KEYCODE_VOLUME_DOWN -> {
-        viewModel.changeVolumeBy(-1)
-        viewModel.displayVolumeSlider()
+      KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+        viewModel.pause()
+        return true
+      }
+
+      KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+        viewModel.pauseUnpause()
+        return true
+      }
+
+      KeyEvent.KEYCODE_MEDIA_NEXT -> {
+        if (viewModel.hasNext()) {
+          viewModel.playNext()
+        }
+        return true
+      }
+
+      KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+        if (viewModel.hasPrevious()) {
+          viewModel.playPrevious()
+        }
         return true
       }
 
@@ -2545,6 +2596,77 @@ class PlayerActivity :
         return true
       }
 
+      // ==================== Volume Keys ====================
+
+      KeyEvent.KEYCODE_VOLUME_UP -> {
+        viewModel.changeVolumeBy(1)
+        viewModel.displayVolumeSlider()
+        return true
+      }
+
+      KeyEvent.KEYCODE_VOLUME_DOWN -> {
+        viewModel.changeVolumeBy(-1)
+        viewModel.displayVolumeSlider()
+        return true
+      }
+
+      // ==================== TV Remote Special Keys ====================
+
+      KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+        // Show more options sheet (accessible from TV remote menu button)
+        if (!isAnySheetOpen) {
+          viewModel.sheetShown.update { Sheets.More }
+          viewModel.hideControls()
+        }
+        return true
+      }
+
+      KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_PROG_RED -> {
+        // Show/toggle controls overlay (info button on many TV remotes)
+        if (controlsShown) {
+          viewModel.hideControls()
+        } else {
+          viewModel.showControls()
+        }
+        return true
+      }
+
+      KeyEvent.KEYCODE_PROG_GREEN -> {
+        // Green button: toggle subtitles sheet
+        if (!isAnySheetOpen) {
+          viewModel.sheetShown.update { Sheets.SubtitleTracks }
+          viewModel.hideControls()
+        } else {
+          viewModel.sheetShown.update { Sheets.None }
+          viewModel.showControls()
+        }
+        return true
+      }
+
+      KeyEvent.KEYCODE_PROG_YELLOW -> {
+        // Yellow button: toggle audio tracks sheet
+        if (!isAnySheetOpen) {
+          viewModel.sheetShown.update { Sheets.AudioTracks }
+          viewModel.hideControls()
+        } else {
+          viewModel.sheetShown.update { Sheets.None }
+          viewModel.showControls()
+        }
+        return true
+      }
+
+      KeyEvent.KEYCODE_CHANNEL_UP -> {
+        // Channel Up: next subtitle track (TV convention)
+        if (viewModel.hasNext()) viewModel.playNext()
+        return true
+      }
+
+      KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+        // Channel Down: previous in playlist
+        if (viewModel.hasPrevious()) viewModel.playPrevious()
+        return true
+      }
+
       else -> {
         event?.let { player.onKey(it) }
         return super.onKeyDown(keyCode, event)
@@ -2554,6 +2676,7 @@ class PlayerActivity :
 
   /**
    * Handles hardware key up events for player control.
+   * Passes unhandled keys to the MPV input system for custom keybinding support.
    *
    * @param keyCode The key code
    * @param event The key event
@@ -2563,10 +2686,34 @@ class PlayerActivity :
     keyCode: Int,
     event: KeyEvent?,
   ): Boolean {
-    event?.let {
-      if (player.onKey(it)) return true
+    // Don't pass media/dpad key-up events to MPV — they were already handled in onKeyDown
+    when (keyCode) {
+      KeyEvent.KEYCODE_DPAD_UP,
+      KeyEvent.KEYCODE_DPAD_DOWN,
+      KeyEvent.KEYCODE_DPAD_LEFT,
+      KeyEvent.KEYCODE_DPAD_RIGHT,
+      KeyEvent.KEYCODE_DPAD_CENTER,
+      KeyEvent.KEYCODE_ENTER,
+      KeyEvent.KEYCODE_MEDIA_PLAY,
+      KeyEvent.KEYCODE_MEDIA_PAUSE,
+      KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+      KeyEvent.KEYCODE_MEDIA_NEXT,
+      KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+      KeyEvent.KEYCODE_MEDIA_STOP,
+      KeyEvent.KEYCODE_MEDIA_REWIND,
+      KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+      KeyEvent.KEYCODE_MENU,
+      KeyEvent.KEYCODE_SETTINGS,
+      KeyEvent.KEYCODE_INFO,
+      -> return true
+
+      else -> {
+        event?.let {
+          if (player.onKey(it)) return true
+        }
+        return super.onKeyUp(keyCode, event)
+      }
     }
-    return super.onKeyUp(keyCode, event)
   }
 
   // ==================== System UI Management ====================

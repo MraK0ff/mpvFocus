@@ -64,6 +64,7 @@ import app.marlboroadvance.mpvex.ui.player.PlayerUpdates
 import app.marlboroadvance.mpvex.ui.player.PlayerViewModel
 import app.marlboroadvance.mpvex.ui.player.SingleActionGesture
 import app.marlboroadvance.mpvex.ui.theme.playerRippleConfiguration
+import app.marlboroadvance.mpvex.utils.tv.isTV
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -80,6 +81,9 @@ fun GestureHandler(
   interactionSource: MutableInteractionSource,
   modifier: Modifier = Modifier,
 ) {
+  // Disable all touch gestures on TV - D-pad/remote handles navigation
+  if (isTV) return
+
   val playerPreferences = koinInject<PlayerPreferences>()
   val audioPreferences = koinInject<AudioPreferences>()
   val gesturePreferences = koinInject<GesturePreferences>()
