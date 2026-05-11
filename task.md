@@ -1,37 +1,24 @@
-# Android TV Compatibility — Phase 2: Make It Navigable
+# Android TV Compatibility — Phase 3: Make It Usable
 
-## Phase 2 Goals
-Enable full D-pad navigation throughout the app. The player works on TV now, but the browser screens (MainScreen, lists, settings) have no focus management.
-
----
-
-## Task 1: MainScreen TV Layout
-
-**Current Issue:** Bottom navigation bar is mobile-only, no focus support on NavigationBarItem.
-
-- [x] Create TV layout with side rail navigation (`MainScreenTV`)
-- [x] Add `tvFocusable()` to navigation items
-- [x] Implement focus restoration on tab switch
-- [x] Add initial focus to first tab on launch
-- [x] Apply overscan-safe padding
-
-**Status:** Complete. MainScreen now branches between mobile (bottom nav) and TV (side rail).
+## Phase 3 Goals
+Polish the TV experience with complete focus traversal, sheet conversion, seekbar support, and comprehensive overscan handling. The app launches and navigates on TV; now make every interaction smooth.
 
 ---
 
-## Task 2: Browser Screens Focus
+## Task 1: Browser Screens Focus (Continued from Phase 2)
 
 **Current Issue:** All list items use bare `.clickable()` without focus.
 
-- [ ] `FolderListScreen` — add focus to folder/video items
+- [ ] `FolderListScreen` — add `tvFocusable()` to folder/video items
 - [ ] `RecentlyPlayedScreen` — add focus to recent items
 - [ ] `PlaylistScreen` — add focus to playlist items
 - [ ] `NetworkStreamingScreen` — add focus to stream items
+- [ ] Create `TvListItem` reusable component for consistent focus
 - [ ] All screens: handle DPAD_BACK for navigation up
 
 ---
 
-## Task 3: Player Controls Focus Traversal
+## Task 2: Player Controls Focus Traversal (Continued from Phase 2)
 
 **Current Issue:** Player buttons have no explicit focus chaining.
 
@@ -39,10 +26,11 @@ Enable full D-pad navigation throughout the app. The player works on TV now, but
 - [ ] Add focus to play/pause, seek, volume buttons
 - [ ] Implement focus highlight on all player buttons
 - [ ] Ensure focus loops logically (leftmost → rightmost wraps)
+- [ ] Add focus to top bar controls (back, title, more options)
 
 ---
 
-## Task 4: Sheet → Dialog Conversion for TV
+## Task 3: Sheet → Dialog Conversion for TV (Continued from Phase 2)
 
 **Current Issue:** `ModalBottomSheet` requires swipe-to-dismiss (touch-only).
 
@@ -50,10 +38,11 @@ Enable full D-pad navigation throughout the app. The player works on TV now, but
 - [ ] Convert `PlayerSheets` to use dialog on TV
 - [ ] Add DPAD_BACK dismissal for TV dialogs
 - [ ] Ensure focus trap inside TV dialogs
+- [ ] Convert browser sheets (PlaylistActionSheet, etc.)
 
 ---
 
-## Task 5: Preference Screens Focus
+## Task 4: Preference Screens Focus (Continued from Phase 2)
 
 **Current Issue:** 16 preference screens with no focus support.
 
@@ -61,10 +50,11 @@ Enable full D-pad navigation throughout the app. The player works on TV now, but
 - [ ] Create `TvPreferenceItem` wrapper component
 - [ ] Add focus to switch/checkbox preferences
 - [ ] Add focus to slider preferences (volume/brightness)
+- [ ] Add focus to list/dialog preferences
 
 ---
 
-## Task 6: Seekbar D-Pad Support
+## Task 5: Seekbar D-Pad Support (Continued from Phase 2)
 
 **Current Issue:** Custom Seeker is touch-drag only.
 
@@ -72,23 +62,54 @@ Enable full D-pad navigation throughout the app. The player works on TV now, but
 - [ ] Implement incremental seek (5s per press)
 - [ ] Implement fast seek (hold LEFT/RIGHT)
 - [ ] Visual feedback during key-driven seek
+- [ ] Ensure seekbar has focus in player control traversal
 
 ---
 
-## Task 7: Overscan-Safe Layouts
+## Task 6: Overscan-Safe Layouts (Continued from Phase 2)
 
 **Current Issue:** No TV overscan compensation.
 
-- [ ] Apply `overscanSafePadding()` to MainScreen
+- [x] Applied to MainScreen TV layout
 - [ ] Apply to PlayerControls top/bottom bars
 - [ ] Apply to all dialog/sheet content
 - [ ] Test at 48dp and 60dp margins
+- [ ] Add `TvSafeArea` composable wrapper
 
 ---
 
-## Phase 2 Definition of Done
-- [ ] Complete browse → play flow using only D-pad
-- [ ] All interactive elements show focus highlight
-- [ ] No focus traps or unreachable elements
-- [ ] Back button navigates up correctly
-- [ ] Sheets dismissible via BACK on TV
+## Task 7: TV Polish & Performance (New)
+
+**Goal:** Ensure TV experience is production-ready.
+
+- [ ] Remove polling loop from MainScreen (performance)
+- [ ] Add proper content descriptions for accessibility
+- [ ] Test focus restoration after rotation/resize
+- [ ] Verify no gesture handlers on TV (brightness, zoom, pan)
+- [ ] Add TV-specific haptic feedback (if supported)
+- [ ] Ensure consistent 56dp touch targets throughout
+
+---
+
+## Task 8: Documentation & Testing (New)
+
+**Goal:** Document TV support and prepare for release.
+
+- [ ] Add TV setup instructions to README
+- [ ] Document remote control key mappings
+- [ ] Create TV testing checklist
+- [ ] Verify no regressions on mobile
+- [ ] Test on Android TV emulator (API 30+)
+
+---
+
+## Phase 3 Definition of Done
+- [ ] Complete browse → play → settings flow using only D-pad
+- [ ] All interactive elements show focus highlight and are reachable
+- [ ] No focus traps, unreachable elements, or dead-ends
+- [ ] Back button navigates up correctly at every level
+- [ ] Sheets/dialogs dismissible via BACK on TV
+- [ ] Seekbar fully controllable via D-pad
+- [ ] Consistent 48dp+ touch targets, 56dp for primary actions
+- [ ] Overscan-safe margins on all screens
+- [ ] Mobile experience unchanged (no regressions)
