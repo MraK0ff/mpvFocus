@@ -12,8 +12,19 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -21,9 +32,11 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -34,10 +47,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import app.marlboroadvance.mpvex.presentation.Screen
 import app.marlboroadvance.mpvex.ui.browser.folderlist.FolderListScreen
@@ -45,34 +63,38 @@ import app.marlboroadvance.mpvex.ui.browser.networkstreaming.NetworkStreamingScr
 import app.marlboroadvance.mpvex.ui.browser.playlist.PlaylistScreen
 import app.marlboroadvance.mpvex.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.marlboroadvance.mpvex.ui.browser.selection.SelectionManager
+import app.marlboroadvance.mpvex.ui.focus.TvFocusConstants
+import app.marlboroadvance.mpvex.ui.focus.tvFocusable
+import app.marlboroadvance.mpvex.utils.tv.isTV
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 
 @Serializable
 object MainScreen : Screen {
   // Use a companion object to store state more persistently
-  private var persistentSelectedTab: Int = 0
-  
+  // Internal visibility so nested objects can access
+  internal var persistentSelectedTab: Int = 0
+
   // Shared state that can be updated by FileSystemBrowserScreen
   @Volatile
-  private var isInSelectionModeShared: Boolean = false  // Controls FAB visibility
-  
+  internal var isInSelectionModeShared: Boolean = false  // Controls FAB visibility
+
   @Volatile
-  private var shouldHideNavigationBar: Boolean = false  // Controls navigation bar visibility
-  
+  internal var shouldHideNavigationBar: Boolean = false  // Controls navigation bar visibility
+
   @Volatile
-  private var isBrowserBottomBarVisible: Boolean = false  // Tracks browser bottom bar visibility
-  
+  internal var isBrowserBottomBarVisible: Boolean = false  // Tracks browser bottom bar visibility
+
   @Volatile
-  private var sharedVideoSelectionManager: Any? = null
-  
+  internal var sharedVideoSelectionManager: Any? = null
+
   // Check if the selection contains only videos and update navigation bar visibility accordingly
   @Volatile
-  private var onlyVideosSelected: Boolean = false
-  
+  internal var onlyVideosSelected: Boolean = false
+
   // Track when permission denied screen is showing to hide FAB
   @Volatile
-  private var isPermissionDenied: Boolean = false
+  internal var isPermissionDenied: Boolean = false
   
   /**
    * Update selection state and navigation bar visibility
@@ -115,47 +137,56 @@ object MainScreen : Screen {
   @Composable
   @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
   override fun Content() {
+    if (isTV) {
+      MainScreenTV.Content()
+    } else {
+      MainScreenMobile.Content()
+    }
+  }
+}
+
+/**
+ * Mobile layout with bottom navigation bar.
+ */
+private object MainScreenMobile {
+  @Composable
+  fun Content() {
     var selectedTab by remember {
       mutableIntStateOf(persistentSelectedTab)
     }
 
-    val context = LocalContext.current
     val density = LocalDensity.current
 
     // Shared state (across the app)
     val isInSelectionMode = remember { mutableStateOf(isInSelectionModeShared) }
     val hideNavigationBar = remember { mutableStateOf(shouldHideNavigationBar) }
     val videoSelectionManager = remember { mutableStateOf<SelectionManager<*, *>?>(sharedVideoSelectionManager as? SelectionManager<*, *>) }
-    
+
     // Check for state changes to ensure UI updates
     LaunchedEffect(Unit) {
       while (true) {
         // Update FAB visibility state
         if (isInSelectionMode.value != isInSelectionModeShared) {
           isInSelectionMode.value = isInSelectionModeShared
-          android.util.Log.d("MainScreen", "Selection mode changed to: $isInSelectionModeShared")
         }
-        
-        // Update navigation bar visibility state - now considers if only videos are selected
+
+        // Update navigation bar visibility state
         if (hideNavigationBar.value != shouldHideNavigationBar) {
           hideNavigationBar.value = shouldHideNavigationBar
-          android.util.Log.d("MainScreen", "Navigation bar visibility changed to: ${!shouldHideNavigationBar}, onlyVideosSelected: $onlyVideosSelected")
         }
-        
+
         // Update selection manager
         val currentManager = sharedVideoSelectionManager as? SelectionManager<*, *>
         if (videoSelectionManager.value != currentManager) {
           videoSelectionManager.value = currentManager
         }
-        
-        // Minimal delay for polling
-        delay(16) // Roughly matches a frame at 60fps for responsive updates
+
+        delay(16)
       }
     }
-    
+
     // Update persistent state whenever tab changes
     LaunchedEffect(selectedTab) {
-      android.util.Log.d("MainScreen", "selectedTab changed to: $selectedTab (was ${persistentSelectedTab})")
       persistentSelectedTab = selectedTab
     }
 
@@ -163,7 +194,6 @@ object MainScreen : Screen {
     Scaffold(
       modifier = Modifier.fillMaxSize(),
       bottomBar = {
-        // Animated bottom navigation bar with slide animations
         AnimatedVisibility(
           visible = !hideNavigationBar.value,
           enter = slideInVertically(
@@ -215,65 +245,37 @@ object MainScreen : Screen {
       }
     ) { paddingValues ->
       Box(modifier = Modifier.fillMaxSize()) {
-        // Always use 80dp bottom padding regardless of navigation bar visibility
         val fabBottomPadding = 80.dp
 
         AnimatedContent(
           targetState = selectedTab,
           transitionSpec = {
-            // Material 3 Expressive slide-in-fade animation (like Google Phone app)
             val slideDistance = with(density) { 48.dp.roundToPx() }
             val animationDuration = 250
-            
+
             if (targetState > initialState) {
-              // Moving forward: slide in from right with fade
               (slideInHorizontally(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                ),
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
                 initialOffsetX = { slideDistance }
               ) + fadeIn(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                )
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing)
               )) togetherWith (slideOutHorizontally(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                ),
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
                 targetOffsetX = { -slideDistance }
               ) + fadeOut(
-                animationSpec = tween(
-                  durationMillis = animationDuration / 2,
-                  easing = FastOutSlowInEasing
-                )
+                animationSpec = tween(durationMillis = animationDuration / 2, easing = FastOutSlowInEasing)
               ))
             } else {
-              // Moving backward: slide in from left with fade
               (slideInHorizontally(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                ),
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
                 initialOffsetX = { -slideDistance }
               ) + fadeIn(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                )
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing)
               )) togetherWith (slideOutHorizontally(
-                animationSpec = tween(
-                  durationMillis = animationDuration,
-                  easing = FastOutSlowInEasing
-                ),
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
                 targetOffsetX = { slideDistance }
               ) + fadeOut(
-                animationSpec = tween(
-                  durationMillis = animationDuration / 2,
-                  easing = FastOutSlowInEasing
-                )
+                animationSpec = tween(durationMillis = animationDuration / 2, easing = FastOutSlowInEasing)
               ))
             }
           },
@@ -290,6 +292,189 @@ object MainScreen : Screen {
             }
           }
         }
+      }
+    }
+  }
+}
+
+/**
+ * TV layout with side rail navigation and focus support.
+ */
+private object MainScreenTV {
+  data class TabItem(
+    val index: Int,
+    val icon: @Composable () -> Unit,
+    val label: String,
+  )
+
+  @Composable
+  fun Content() {
+    var selectedTab by remember { mutableIntStateOf(persistentSelectedTab) }
+    val density = LocalDensity.current
+
+    // Focus requesters for navigation items
+    val focusRequesters = remember { List(4) { FocusRequester() } }
+
+    // Request focus on first item when launched
+    LaunchedEffect(Unit) {
+      delay(100) // Small delay for composition to settle
+      focusRequesters[selectedTab].requestFocus()
+    }
+
+    // Update persistent state whenever tab changes
+    LaunchedEffect(selectedTab) {
+      persistentSelectedTab = selectedTab
+    }
+
+    val tabs = listOf(
+      TabItem(0, { Icon(Icons.Filled.Home, contentDescription = null) }, "Home"),
+      TabItem(1, { Icon(Icons.Filled.History, contentDescription = null) }, "Recents"),
+      TabItem(2, { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) }, "Playlists"),
+      TabItem(3, { Icon(Icons.Filled.Language, contentDescription = null) }, "Network"),
+    )
+
+    Row(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(start = TvFocusConstants.OverscanPadding),
+    ) {
+      // Side rail navigation
+      Surface(
+        modifier = Modifier
+          .width(120.dp)
+          .fillMaxHeight()
+          .padding(vertical = TvFocusConstants.OverscanPadding),
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(16.dp),
+      ) {
+        Column(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 16.dp)
+            .selectableGroup(),
+          horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          Spacer(modifier = Modifier.height(16.dp))
+
+          tabs.forEach { tab ->
+            val isSelected = selectedTab == tab.index
+
+            TvNavigationItem(
+              icon = tab.icon,
+              label = tab.label,
+              selected = isSelected,
+              onClick = { selectedTab = tab.index },
+              focusRequester = focusRequesters[tab.index],
+              modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+          }
+
+          Spacer(modifier = Modifier.weight(1f))
+        }
+      }
+
+      // Content area
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(TvFocusConstants.OverscanPadding)
+      ) {
+        AnimatedContent(
+          targetState = selectedTab,
+          transitionSpec = {
+            val slideDistance = with(density) { 48.dp.roundToPx() }
+            val animationDuration = 250
+
+            if (targetState > initialState) {
+              (slideInHorizontally(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
+                initialOffsetX = { slideDistance }
+              ) + fadeIn(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing)
+              )) togetherWith (slideOutHorizontally(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
+                targetOffsetX = { -slideDistance }
+              ) + fadeOut(
+                animationSpec = tween(durationMillis = animationDuration / 2, easing = FastOutSlowInEasing)
+              ))
+            } else {
+              (slideInHorizontally(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
+                initialOffsetX = { -slideDistance }
+              ) + fadeIn(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing)
+              )) togetherWith (slideOutHorizontally(
+                animationSpec = tween(durationMillis = animationDuration, easing = FastOutSlowInEasing),
+                targetOffsetX = { slideDistance }
+              ) + fadeOut(
+                animationSpec = tween(durationMillis = animationDuration / 2, easing = FastOutSlowInEasing)
+              ))
+            }
+          },
+          label = "tv_tab_animation"
+        ) { targetTab ->
+          CompositionLocalProvider(
+            LocalNavigationBarHeight provides 0.dp
+          ) {
+            when (targetTab) {
+              0 -> FolderListScreen.Content()
+              1 -> RecentlyPlayedScreen.Content()
+              2 -> PlaylistScreen.Content()
+              3 -> NetworkStreamingScreen.Content()
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Composable
+  private fun TvNavigationItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+  ) {
+    val backgroundColor = if (selected) {
+      MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    } else {
+      Color.Transparent
+    }
+
+    Box(
+      modifier = modifier
+        .height(TvFocusConstants.MinTouchTargetSize)
+        .clip(RoundedCornerShape(12.dp))
+        .background(backgroundColor)
+        .selectable(
+          selected = selected,
+          onClick = onClick,
+          role = Role.Tab,
+        )
+        .focusRequester(focusRequester)
+        .tvFocusable(
+          onClick = onClick,
+          contentDescription = label,
+        ),
+      contentAlignment = Alignment.Center,
+    ) {
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        icon()
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = label,
+          style = MaterialTheme.typography.labelSmall,
+          color = if (selected) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            MaterialTheme.colorScheme.onSurface
+          },
+        )
       }
     }
   }
